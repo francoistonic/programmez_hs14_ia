@@ -1,0 +1,18 @@
+{\rtf1\ansi\ansicpg1252\cocoartf2761
+\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\fswiss\fcharset0 Helvetica;}
+{\colortbl;\red255\green255\blue255;}
+{\*\expandedcolortbl;;}
+\paperw11900\paperh16840\margl1440\margr1440\vieww11520\viewh8400\viewkind0
+\pard\tx560\tx1120\tx1680\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\pardirnatural\partightenfactor0
+
+\f0\fs29\fsmilli14667 \cf0 \'a0\
+import feedparser\uc0\u8232 from transformers import MarianMTModel, MarianTokenizer, pipeline\u8232 \u8232 # Premi\'e8re \'e9tape, r\'e9cup\'e9ration des articles\
+def fetch_rss_articles(rss_url):\uc0\u8232 \'a0\'a0\'a0 feed = feedparser.parse(rss_url)\u8232 \'a0\'a0\'a0 articles = [\{\u8232 \'a0\'a0\'a0\'a0\'a0\'a0\'a0 'title_ja': entry.title,\u8232 \'a0\'a0\'a0\'a0\'a0\'a0\'a0 'link': entry.link\u8232 \'a0\'a0\'a0 \} for entry in feed.entries[:8]] # Prendre les 8 premiers articles\u8232 \'a0\'a0\'a0 return articles\u8232 \u8232 # Deuxi\'e8me \'e9tape, traduction jp vers en, puis en vers fr\
+def translate_ja_to_en_to_fr(texts):\uc0\u8232 \'a0\'a0\'a0 # jp vers en\u8232 \'a0\'a0\'a0 tokenizer_ja_en = MarianTokenizer.from_pretrained("Helsinki-NLP/opus-mt-ja-en")\u8232 \'a0\'a0\'a0 model_ja_en = MarianMTModel.from_pretrained("Helsinki-NLP/opus-mt-ja-en")\u8232 \'a0\'a0\'a0 translated_to_en = model_ja_en.generate(**tokenizer_ja_en(texts, return_tensors="pt", padding=True, truncation=True, max_length=512))\u8232 \'a0\'a0\'a0 texts_en = [tokenizer_ja_en.decode(t, skip_special_tokens=True) for t in translated_to_en]\u8232 \'a0\'a0\'a0 \u8232 \'a0\'a0\'a0 # en vers fr\
+\'a0\'a0\'a0 tokenizer_en_fr = MarianTokenizer.from_pretrained("Helsinki-NLP/opus-mt-en-fr")\uc0\u8232 \'a0\'a0\'a0 model_en_fr = MarianMTModel.from_pretrained("Helsinki-NLP/opus-mt-en-fr")\u8232 \'a0\'a0\'a0 translated_to_fr = model_en_fr.generate(**tokenizer_en_fr(texts_en, return_tensors="pt", padding=True, truncation=True, max_length=512))\u8232 \'a0\'a0\'a0 return [tokenizer_en_fr.decode(t, skip_special_tokens=True) for t in translated_to_fr]\u8232 \u8232 # Troisi\'e8me \'e9tape, classification\
+def classify_articles(translated_titles):\uc0\u8232 \'a0\'a0\'a0 classifier = pipeline('zero-shot-classification', model='facebook/bart-large-mnli')\u8232 \'a0\'a0\'a0 categories = ['politics', 'sports', 'culture', 'economy', 'international', 'others']\u8232 \'a0\'a0\'a0 results = []\u8232 \'a0\'a0\'a0 for title in translated_titles:\u8232 \'a0\'a0\'a0\'a0\'a0\'a0\'a0 result = classifier(title, categories, hypothesis_template="This text is about \{\}.")\u8232 \'a0\'a0\'a0\'a0\'a0\'a0\'a0 results.append((title, result['labels'][0], result['scores'][0]))\u8232 \'a0\'a0\'a0 return results\u8232 \u8232 # URL du flux RSS\u8232 rss_url = "https://www.hokkaido-np.co.jp/output/7/free/index.ad.xml"\u8232 articles = fetch_rss_articles(rss_url)\u8232 titles_ja = [article['title_ja'] for article in articles]\u8232 links = [article['link'] for article in articles]\u8232 translated_titles = translate_ja_to_en_to_fr(titles_ja)\u8232 categorized_articles = classify_articles(translated_titles)\
+\'a0\
+for article, (title_fr, category, score), link in zip(articles, categorized_articles, links):\
+\'a0\'a0\'a0 print(f"Titre (jp) : \{article['title_ja']\}\\nTitre (fr) : \{title_fr\}\\nCat\'e9gorie pr\'e9dite : \{category\}, Score : \{score:.4f\}\\nLien: \{link\}\\n")\
+\'a0\
+}
